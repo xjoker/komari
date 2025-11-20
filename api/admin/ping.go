@@ -1,78 +1,13 @@
 package admin
 
 import (
-	"net"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/komari-monitor/komari/api"
 	"github.com/komari-monitor/komari/database/models"
 	"github.com/komari-monitor/komari/database/tasks"
 )
-
-// isPrivateIP 检查是否为内网地址（防止 SSRF）
-func isPrivateIP(ip string) bool {
-	parsedIP := net.ParseIP(ip)
-	if parsedIP == nil {
-		return false
-	}
-
-	// 检查是否为私有 IP 地址范围
-	privateIPBlocks := []string{
-		"10.0.0.0/8",     // RFC1918
-		"172.16.0.0/12",  // RFC1918
-		"192.168.0.0/16", // RFC1918
-		"127.0.0.0/8",    // Loopback
-		"169.254.0.0/16", // Link-local
-		"::1/128",        // IPv6 loopback
-		"fc00::/7",       // IPv6 unique local addr
-		"fe80::/10",      // IPv6 link-local
-	}
-
-	for _, cidr := range privateIPBlocks {
-		_, block, _ := net.ParseCIDR(cidr)
-		if block.Contains(parsedIP) {
-			return true
-		}
-	}
-	return false
-}
-
-// validateTarget 验证 target 不是内网地址（防止 SSRF 漏洞）
-func validateTarget(target string) error {
-	// 如果是 URL，提取主机名
-	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
-		parsedURL, err := url.Parse(target)
-		if err != nil {
-			return err
-		}
-		target = parsedURL.Hostname()
-	}
-
-	// 解析主机名或 IP
-	ips, err := net.LookupIP(target)
-	if err != nil {
-		// 如果无法解析，尝试直接解析为 IP
-		if ip := net.ParseIP(target); ip != nil {
-			if isPrivateIP(target) {
-				return &net.OpError{Op: "validate", Net: "ip", Err: &net.DNSError{Err: "target cannot be a private IP address", Name: target, IsNotFound: true}}
-			}
-			return nil
-		}
-		return err
-	}
-
-	// 检查所有解析的 IP 是否为内网地址
-	for _, ip := range ips {
-		if isPrivateIP(ip.String()) {
-			return &net.OpError{Op: "validate", Net: "ip", Err: &net.DNSError{Err: "target resolves to a private IP address", Name: target, IsNotFound: true}}
-		}
-	}
-
-	return nil
-}
 
 // POST body: clients []string, target, task_type string, interval int
 func AddPingTask(c *gin.Context) {
@@ -92,12 +27,6 @@ func AddPingTask(c *gin.Context) {
 	// 验证 clients 数组不为空
 	if len(req.Clients) == 0 {
 		api.RespondError(c, http.StatusBadRequest, "At least one client is required")
-		return
-	}
-
-	// 验证 target 不是内网地址（防止 SSRF）
-	if err := validateTarget(req.Target); err != nil {
-		api.RespondError(c, http.StatusBadRequest, "Invalid target: cannot target private IP addresses or internal networks")
 		return
 	}
 
