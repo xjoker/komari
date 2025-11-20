@@ -22,13 +22,43 @@ func UpdateUser(c *gin.Context) {
 		api.RespondError(c, 400, "At least one field (username or password) must be provided")
 		return
 	}
-	if req.Name != nil && len(*req.Name) < 3 {
-		api.RespondError(c, 400, "Username must be at least 3 characters long")
-		return
+	if req.Name != nil {
+		if len(*req.Name) < 3 {
+			api.RespondError(c, 400, "Username must be at least 3 characters long")
+			return
+		}
+		if len(*req.Name) > 50 {
+			api.RespondError(c, 400, "Username must not exceed 50 characters")
+			return
+		}
 	}
-	if req.Password != nil && len(*req.Password) < 6 {
-		api.RespondError(c, 400, "Password must be at least 6 characters long")
-		return
+	if req.Password != nil {
+		// 强化密码策略：最少12位，包含大小写字母、数字
+		if len(*req.Password) < 12 {
+			api.RespondError(c, 400, "Password must be at least 12 characters long")
+			return
+		}
+		if len(*req.Password) > 128 {
+			api.RespondError(c, 400, "Password must not exceed 128 characters")
+			return
+		}
+		// 检查是否包含大写字母、小写字母和数字
+		hasUpper := false
+		hasLower := false
+		hasDigit := false
+		for _, char := range *req.Password {
+			if char >= 'A' && char <= 'Z' {
+				hasUpper = true
+			} else if char >= 'a' && char <= 'z' {
+				hasLower = true
+			} else if char >= '0' && char <= '9' {
+				hasDigit = true
+			}
+		}
+		if !hasUpper || !hasLower || !hasDigit {
+			api.RespondError(c, 400, "Password must contain at least one uppercase letter, one lowercase letter, and one digit")
+			return
+		}
 	}
 	if err := accounts.UpdateUser(req.Uuid, req.Name, req.Password, req.SsoType); err != nil {
 		api.RespondError(c, 500, "Failed to update user: "+err.Error())

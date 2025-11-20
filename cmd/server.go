@@ -210,7 +210,6 @@ func RunServer() {
 		tokenAuthrized.POST("/uploadBasicInfo", client.UploadBasicInfo)
 		tokenAuthrized.POST("/report", client.UploadReport)
 		tokenAuthrized.GET("/terminal", client.EstablishConnection)
-		tokenAuthrized.POST("/task/result", client.TaskResult)
 	}
 	// #region 管理员
 	adminAuthrized := r.Group("/api/admin", api.AdminAuthMiddleware())
@@ -230,16 +229,6 @@ func RunServer() {
 			updateGroup.POST("/user", update.UpdateUser)
 			updateGroup.PUT("/favicon", update.UploadFavicon)
 			updateGroup.POST("/favicon", update.DeleteFavicon)
-		}
-		// tasks
-		taskGroup := adminAuthrized.Group("/task")
-		{
-			taskGroup.GET("/all", admin.GetTasks)
-			taskGroup.POST("/exec", admin.Exec)
-			taskGroup.GET("/:task_id", admin.GetTaskById)
-			taskGroup.GET("/:task_id/result", admin.GetTaskResultsByTaskId)
-			taskGroup.GET("/:task_id/result/:uuid", admin.GetSpecificTaskResult)
-			taskGroup.GET("/client/:uuid", admin.GetTasksByClientId)
 		}
 		// settings
 		settingsGroup := adminAuthrized.Group("/settings")
@@ -439,7 +428,6 @@ func DoScheduledWork() {
 		case <-ticker.C:
 			records.DeleteRecordBefore(time.Now().Add(-time.Hour * time.Duration(cfg.RecordPreserveTime)))
 			records.CompactRecord()
-			tasks.ClearTaskResultsByTimeBefore(time.Now().Add(-time.Hour * time.Duration(cfg.RecordPreserveTime)))
 			tasks.DeletePingRecordsBefore(time.Now().Add(-time.Hour * time.Duration(cfg.PingRecordPreserveTime)))
 			auditlog.RemoveOldLogs()
 		case <-minute.C:

@@ -2,24 +2,33 @@ package ws
 
 import (
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 )
 
+// CheckOrigin 检查 WebSocket 连接的来源（防止 CORS 绕过）
 func CheckOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
-	// 显式关闭校验
-	if strings.EqualFold(os.Getenv("KOMARI_WS_DISABLE_ORIGIN"), "true") {
+	if origin == "" {
+		// 如果没有 Origin 头，检查 Host 头
 		return true
 	}
-	if origin == "" {
-		return false
+
+	// 获取允许的来源列表
+	allowedOrigins := os.Getenv("KOMARI_ALLOWED_ORIGINS")
+	if allowedOrigins == "" {
+		// 如果没有配置，检查 origin 是否与 Host 匹配
+		host := r.Host
+		return strings.HasSuffix(origin, "://"+host)
 	}
-	host := r.Host
-	originUrl, err := url.Parse(origin)
-	if err != nil {
-		return false
+
+	// 检查 origin 是否在白名单中
+	origins := strings.Split(allowedOrigins, ",")
+	for _, allowed := range origins {
+		if strings.TrimSpace(allowed) == origin {
+			return true
+		}
 	}
-	return originUrl.Host == host
+
+	return false
 }

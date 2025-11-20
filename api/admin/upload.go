@@ -28,13 +28,22 @@ func UploadBackup(c *gin.Context) {
 	}
 	defer restoreMutex.Unlock()
 
+	// 限制上传文件大小为 500MB（防止磁盘空间耗尽）
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 500*1024*1024)
+
 	// 获取上传的文件
 	file, header, err := c.Request.FormFile("backup")
 	if err != nil {
-		api.RespondError(c, http.StatusBadRequest, fmt.Sprintf("Error getting uploaded file: %v", err))
+		api.RespondError(c, http.StatusBadRequest, fmt.Sprintf("Error getting uploaded file (max size 500MB): %v", err))
 		return
 	}
 	defer file.Close()
+
+	// 检查文件大小
+	if header.Size > 500*1024*1024 {
+		api.RespondError(c, http.StatusBadRequest, "File size exceeds 500MB limit")
+		return
+	}
 
 	// 检查文件是否为zip格式
 	if !strings.HasSuffix(strings.ToLower(header.Filename), ".zip") {

@@ -70,9 +70,7 @@ func WebSocketReport(c *gin.Context) {
 		return
 	}
 	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true // 被控
-		},
+		CheckOrigin: ws.CheckOrigin, // 验证 Origin 防止 CORS 绕过
 	}
 	// Upgrade the HTTP connection to a WebSocket connection
 	unsafeConn, err := upgrader.Upgrade(c.Writer, c.Request, nil)

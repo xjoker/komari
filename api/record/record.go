@@ -57,6 +57,12 @@ func GetRecordsByUUID(c *gin.Context) {
 		return
 	}
 
+	// 验证时间范围（防止过大查询导致性能问题）
+	if hoursInt < 1 || hoursInt > 720 {
+		api.RespondError(c, 400, "Hours parameter must be between 1 and 720 (30 days)")
+		return
+	}
+
 	// 验证 load_type 参数
 	validLoadTypes := map[string]bool{
 		"cpu": true, "ram": true, "swap": true,

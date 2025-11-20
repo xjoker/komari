@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/komari-monitor/komari/api"
+	"github.com/komari-monitor/komari/ws"
 )
 
 func EstablishConnection(c *gin.Context) {
@@ -21,9 +22,7 @@ func EstablishConnection(c *gin.Context) {
 		return
 	}
 	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true // 被控
-		},
+		CheckOrigin: ws.CheckOrigin, // 验证 Origin 防止 CORS 绕过
 	}
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
