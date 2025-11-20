@@ -424,8 +424,11 @@ func GetDBInstance() *gorm.DB {
 			if err := instance.Exec("PRAGMA journal_mode = WAL;").Error; err != nil {
 				log.Printf("Failed to enable WAL mode for SQLite: %v", err)
 			}
-			instance.Exec("VACUUM;")
-			instance.Exec("PRAGMA wal_checkpoint(TRUNCATE);")
+			// ⚠️ 移除启动时的VACUUM以加快启动速度
+			// VACUUM现在通过定时任务在后台执行（每周日凌晨3点）
+			// instance.Exec("VACUUM;")
+			// instance.Exec("PRAGMA wal_checkpoint(TRUNCATE);")
+			log.Println("SQLite database connected. VACUUM will run on scheduled maintenance.")
 		case "mysql":
 			// MySQL 连接
 			dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&collation=utf8mb4_unicode_ci&parseTime=True&loc=Local",

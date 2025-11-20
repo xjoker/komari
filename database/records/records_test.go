@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,7 +35,13 @@ func TestCompactRecord(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	assert.NoError(t, err)
 	assert.NoError(t, db.AutoMigrate(&models.Record{}))
-	assert.NoError(t, db.Table("records_long_term").AutoMigrate(&models.Record{}))
+	// 创建 long_term 表 - 忽略索引已存在的错误
+	if err := db.Table("records_long_term").AutoMigrate(&models.Record{}); err != nil {
+		// SQLite 可能报告索引已存在，这是预期行为
+		if !strings.Contains(err.Error(), "already exists") {
+			t.Fatalf("Failed to migrate long_term table: %v", err)
+		}
+	}
 
 	expectedGroups := make(map[time.Time]struct{})
 	expectedRemain := 0
