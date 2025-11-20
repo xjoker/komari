@@ -16,9 +16,7 @@ import (
 	"github.com/komari-monitor/komari/common"
 	"github.com/komari-monitor/komari/database/models"
 	logutil "github.com/komari-monitor/komari/utils/log"
-	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -411,53 +409,18 @@ func GetDBInstance() *gorm.DB {
 			Logger: logutil.NewGormLogger(),
 		}
 
-		// 根据数据库类型选择不同的连接方式
-		switch flags.DatabaseType {
-		case "sqlite", "":
-			// SQLite 连接
-			instance, err = gorm.Open(sqlite.Open(flags.DatabaseFile), logConfig)
-			if err != nil {
-				log.Fatalf("Failed to connect to SQLite3 database: %v", err)
-			}
-			log.Printf("Using SQLite database file: %s", flags.DatabaseFile)
-			instance.Exec("PRAGMA wal = ON;")
-			if err := instance.Exec("PRAGMA journal_mode = WAL;").Error; err != nil {
-				log.Printf("Failed to enable WAL mode for SQLite: %v", err)
-			}
-			// ⚠️ 移除启动时的VACUUM以加快启动速度
-			// VACUUM现在通过定时任务在后台执行（每周日凌晨3点）
-			// instance.Exec("VACUUM;")
-			// instance.Exec("PRAGMA wal_checkpoint(TRUNCATE);")
-			log.Println("SQLite database connected. VACUUM will run on scheduled maintenance.")
-		case "mysql":
-			// MySQL 连接
-			dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&collation=utf8mb4_unicode_ci&parseTime=True&loc=Local",
-				flags.DatabaseUser,
-				flags.DatabasePass,
-				flags.DatabaseHost,
-				flags.DatabasePort,
-				flags.DatabaseName)
-			instance, err = gorm.Open(mysql.Open(dsn), logConfig)
-			if err != nil {
-				log.Fatalf("Failed to connect to MySQL database: %v", err)
-			}
-			log.Printf("Using MySQL database: %s@%s:%s/%s", flags.DatabaseUser, flags.DatabaseHost, flags.DatabasePort, flags.DatabaseName)
-		case "postgres", "postgresql":
-			// PostgreSQL 连接
-			dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable TimeZone=Asia/Shanghai",
-				flags.DatabaseHost,
-				flags.DatabasePort,
-				flags.DatabaseUser,
-				flags.DatabasePass,
-				flags.DatabaseName)
-			instance, err = gorm.Open(postgres.Open(dsn), logConfig)
-			if err != nil {
-				log.Fatalf("Failed to connect to PostgreSQL database: %v", err)
-			}
-			log.Printf("Using PostgreSQL database: %s@%s:%s/%s", flags.DatabaseUser, flags.DatabaseHost, flags.DatabasePort, flags.DatabaseName)
-		default:
-			log.Fatalf("Unsupported database type: %s", flags.DatabaseType)
+		// PostgreSQL 连接
+		dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable TimeZone=Asia/Shanghai",
+			flags.DatabaseHost,
+			flags.DatabasePort,
+			flags.DatabaseUser,
+			flags.DatabasePass,
+			flags.DatabaseName)
+		instance, err = gorm.Open(postgres.Open(dsn), logConfig)
+		if err != nil {
+			log.Fatalf("Failed to connect to PostgreSQL database: %v", err)
 		}
+		log.Printf("Using PostgreSQL database: %s@%s:%s/%s", flags.DatabaseUser, flags.DatabaseHost, flags.DatabasePort, flags.DatabaseName)
 		MergeDatabase(instance)
 		// 自动迁移模型
 		err = instance.AutoMigrate(

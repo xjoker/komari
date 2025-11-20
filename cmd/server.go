@@ -404,31 +404,6 @@ func DoScheduledWork() {
 		records.CompactRecord()
 	})
 
-	// 每周日凌晨3点执行VACUUM维护任务（仅SQLite）
-	go func() {
-		for {
-			now := time.Now()
-			// 计算距离下一个周日凌晨3点的时间
-			daysUntilSunday := (7 - int(now.Weekday())) % 7
-			if daysUntilSunday == 0 && now.Hour() >= 3 {
-				daysUntilSunday = 7 // 如果今天是周日但已过3点，则等到下周日
-			}
-			nextSunday := time.Date(now.Year(), now.Month(), now.Day()+daysUntilSunday,
-				3, 0, 0, 0, now.Location())
-
-			time.Sleep(time.Until(nextSunday))
-
-			// 只对SQLite执行VACUUM（PostgreSQL通过autovacuum自动管理）
-			if flags.DatabaseType == "sqlite" || flags.DatabaseType == "" {
-				log.Println("Running weekly SQLite maintenance (VACUUM + WAL checkpoint)...")
-				db := dbcore.GetDBInstance()
-				db.Exec("PRAGMA wal_checkpoint(TRUNCATE);")
-				db.Exec("VACUUM;")
-				log.Println("Weekly SQLite maintenance completed")
-			}
-		}
-	}()
-
 	for {
 		select {
 		case <-ticker.C:

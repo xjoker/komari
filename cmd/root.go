@@ -17,13 +17,11 @@ func GetEnv(key, defaultValue string) string {
 	return value
 }
 
-// 从环境变量获取默认值
+// 从环境变量获取默认值 - PostgreSQL only
 var (
-	dbTypeEnv = GetEnv("KOMARI_DB_TYPE", "sqlite")
-	dbFileEnv = GetEnv("KOMARI_DB_FILE", "./data/komari.db")
 	dbHostEnv = GetEnv("KOMARI_DB_HOST", "localhost")
-	dbPortEnv = GetEnv("KOMARI_DB_PORT", "3306")
-	dbUserEnv = GetEnv("KOMARI_DB_USER", "root")
+	dbPortEnv = GetEnv("KOMARI_DB_PORT", "5432")
+	dbUserEnv = GetEnv("KOMARI_DB_USER", "komari")
 	dbPassEnv = GetEnv("KOMARI_DB_PASS", "")
 	dbNameEnv = GetEnv("KOMARI_DB_NAME", "komari")
 )
@@ -47,12 +45,10 @@ func Execute() {
 }
 
 func init() {
-	// 设置命令行参数，提供环境变量作为默认值
-	RootCmd.PersistentFlags().StringVarP(&flags.DatabaseType, "db-type", "t", dbTypeEnv, "Database type (sqlite, mysql, postgres) [env: KOMARI_DB_TYPE]")
-	RootCmd.PersistentFlags().StringVarP(&flags.DatabaseFile, "database", "d", dbFileEnv, "SQLite database file path [env: KOMARI_DB_FILE]")
-	RootCmd.PersistentFlags().StringVar(&flags.DatabaseHost, "db-host", dbHostEnv, "MySQL/PostgreSQL database host address [env: KOMARI_DB_HOST]")
-	RootCmd.PersistentFlags().StringVar(&flags.DatabasePort, "db-port", dbPortEnv, "MySQL/PostgreSQL database port [env: KOMARI_DB_PORT]")
-	RootCmd.PersistentFlags().StringVar(&flags.DatabaseUser, "db-user", dbUserEnv, "MySQL/PostgreSQL database username [env: KOMARI_DB_USER]")
-	RootCmd.PersistentFlags().StringVar(&flags.DatabasePass, "db-pass", dbPassEnv, "MySQL/PostgreSQL database password [env: KOMARI_DB_PASS]")
-	RootCmd.PersistentFlags().StringVar(&flags.DatabaseName, "db-name", dbNameEnv, "MySQL/PostgreSQL database name [env: KOMARI_DB_NAME]")
+	// PostgreSQL database configuration
+	RootCmd.PersistentFlags().StringVar(&flags.DatabaseHost, "db-host", dbHostEnv, "PostgreSQL host address [env: KOMARI_DB_HOST]")
+	RootCmd.PersistentFlags().StringVar(&flags.DatabasePort, "db-port", dbPortEnv, "PostgreSQL port [env: KOMARI_DB_PORT]")
+	RootCmd.PersistentFlags().StringVar(&flags.DatabaseUser, "db-user", dbUserEnv, "PostgreSQL username [env: KOMARI_DB_USER]")
+	RootCmd.PersistentFlags().StringVar(&flags.DatabasePass, "db-pass", dbPassEnv, "PostgreSQL password [env: KOMARI_DB_PASS]")
+	RootCmd.PersistentFlags().StringVar(&flags.DatabaseName, "db-name", dbNameEnv, "PostgreSQL database name [env: KOMARI_DB_NAME]")
 }

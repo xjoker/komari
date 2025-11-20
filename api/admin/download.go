@@ -14,7 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/komari-monitor/komari/api"
 	"github.com/komari-monitor/komari/cmd/flags"
-	"github.com/komari-monitor/komari/database/dbcore"
 )
 
 // copyFile 复制单个文件到目标路径（会确保父目录存在）
@@ -84,66 +83,23 @@ func copyDataToTempExcludingDB(tempDir string) error {
 	})
 }
 
-// backupDatabaseTo 根据数据库类型执行不同的备份策略
+// backupDatabaseTo 使用 pg_dump 备份 PostgreSQL 数据库
 func backupDatabaseTo(destDBPath string) error {
 	if err := os.MkdirAll(filepath.Dir(destDBPath), 0o755); err != nil {
 		return fmt.Errorf("failed to create parent directory for db: %v", err)
 	}
 
-	db := dbcore.GetDBInstance()
-
-	switch flags.DatabaseType {
-	case "sqlite", "":
-		// 使用VACUUM INTO备份SQLite
-		sqlDB, err := db.DB()
-		if err != nil {
-			return fmt.Errorf("failed to get underlying database connection: %v", err)
-		}
-		safePath := strings.ReplaceAll(destDBPath, "'", "''")
-		vacuumSQL := fmt.Sprintf("VACUUM INTO '%s'", safePath)
-		if _, err = sqlDB.Exec(vacuumSQL); err != nil {
-			return fmt.Errorf("sqlite VACUUM INTO failed: %v", err)
-		}
-
-	case "postgres", "postgresql":
-		// 使用pg_dump备份PostgreSQL
-		cmd := exec.Command("pg_dump",
-			"-h", flags.DatabaseHost,
-			"-p", flags.DatabasePort,
-			"-U", flags.DatabaseUser,
-			"-d", flags.DatabaseName,
-			"-F", "c", // 自定义格式，支持压缩和选择性恢复
-			"-f", destDBPath)
-		cmd.Env = append(os.Environ(), "PGPASSWORD="+flags.DatabasePass)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("pg_dump failed: %v, output: %s", err, output)
-		}
-
-	case "mysql":
-		// MySQL备份使用mysqldump
-		cmd := exec.Command("mysqldump",
-			"-h", flags.DatabaseHost,
-			"-P", flags.DatabasePort,
-			"-u", flags.DatabaseUser,
-			"-p"+flags.DatabasePass,
-			"--single-transaction",
-			"--quick",
-			"--lock-tables=false",
-			flags.DatabaseName)
-
-		outFile, err := os.Create(destDBPath)
-		if err != nil {
-			return fmt.Errorf("failed to create mysql dump file: %v", err)
-		}
-		defer outFile.Close()
-
-		cmd.Stdout = outFile
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("mysqldump failed: %v, output: %s", err, output)
-		}
-
-	default:
-		return fmt.Errorf("unsupported database type for backup: %s", flags.DatabaseType)
+	// 使用pg_dump备份PostgreSQL
+	cmd := exec.Command("pg_dump",
+		"-h", flags.DatabaseHost,
+		"-p", flags.DatabasePort,
+		"-U", flags.DatabaseUser,
+		"-d", flags.DatabaseName,
+		"-F", "c", // 自定义格式，支持压缩和选择性恢复
+		"-f", destDBPath)
+	cmd.Env = append(os.Environ(), "PGPASSWORD="+flags.DatabasePass)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("pg_dump failed: %v, output: %s", err, output)
 	}
 
 	return nil
