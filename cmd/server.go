@@ -66,6 +66,11 @@ func init() {
 
 func RunServer() {
 	// #region 初始化
+	// 安全检查: 确保数据库密码已配置
+	if flags.DatabasePass == "" {
+		log.Fatal("Database password is required. Please set KOMARI_DB_PASS environment variable or use --db-pass flag.")
+	}
+
 	if err := os.MkdirAll("./data", os.ModePerm); err != nil {
 		log.Fatalf("Failed to create data directory: %v", err)
 	}
@@ -395,7 +400,13 @@ func DoScheduledWork() {
 	d_notification.ReloadLoadNotificationSchedule()
 	ticker := time.NewTicker(time.Minute * 30)
 	minute := time.NewTicker(60 * time.Second)
-	cfg, _ := config.Get()
+
+	// 获取配置并处理错误
+	cfg, err := config.Get()
+	if err != nil {
+		log.Fatalf("Failed to get configuration in DoScheduledWork: %v", err)
+	}
+
 	go notifier.CheckExpireScheduledWork()
 
 	// 延迟5分钟后执行首次数据压缩，避免启动时IO峰值
@@ -403,6 +414,25 @@ func DoScheduledWork() {
 		log.Println("Running initial record compaction (delayed 5 minutes)...")
 		records.CompactRecord()
 	})
+
+	// 数据库健康检查 - 每分钟检查连接状态
+	healthTicker := time.NewTicker(time.Minute)
+	go func() {
+		for range healthTicker.C {
+			db := dbcore.GetDBInstance()
+			sqlDB, err := db.DB()
+			if err != nil {
+				log.Printf("[Health Check] Failed to get database instance: %v", err)
+				continue
+			}
+
+			// Ping 数据库以检测连接是否有效
+			if err := sqlDB.Ping(); err != nil {
+				log.Printf("[Health Check] Database connection lost: %v", err)
+				// 注意: GORM 会自动重连，这里只是记录错误
+			}
+		}
+	}()
 
 	for {
 		select {

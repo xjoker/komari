@@ -171,10 +171,17 @@ func CompactRecord() error {
 		return err
 	}
 
-	// PostgreSQL自动清理 - 使用VACUUM ANALYZE优化性能
-	if err := db.Exec("VACUUM ANALYZE").Error; err != nil {
-		log.Printf("Error running VACUUM ANALYZE: %v", err)
-	}
+	// 注意: 不再手动执行 VACUUM ANALYZE
+	// PostgreSQL 的 autovacuum 进程会自动在后台处理表维护
+	// 手动执行会导致性能问题：
+	// - 每30分钟执行一次会造成频繁的全表扫描
+	// - 在大数据集上可能导致长时间锁表
+	// - autovacuum 会根据表的实际变更情况智能调度
+	//
+	// 如需调优，请配置 postgresql.conf 中的 autovacuum 参数：
+	// - autovacuum = on
+	// - autovacuum_naptime = 1min
+	// - autovacuum_vacuum_scale_factor = 0.1
 
 	return nil
 }

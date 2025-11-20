@@ -89,6 +89,13 @@ func backupDatabaseTo(destDBPath string) error {
 		return fmt.Errorf("failed to create parent directory for db: %v", err)
 	}
 
+	// 创建临时 .pgpass 文件以安全传递密码
+	pgpassFile, err := createPgPassFile()
+	if err != nil {
+		return fmt.Errorf("failed to create pgpass file: %v", err)
+	}
+	defer os.Remove(pgpassFile) // 确保清理
+
 	// 使用pg_dump备份PostgreSQL
 	cmd := exec.Command("pg_dump",
 		"-h", flags.DatabaseHost,
@@ -97,12 +104,46 @@ func backupDatabaseTo(destDBPath string) error {
 		"-d", flags.DatabaseName,
 		"-F", "c", // 自定义格式，支持压缩和选择性恢复
 		"-f", destDBPath)
-	cmd.Env = append(os.Environ(), "PGPASSWORD="+flags.DatabasePass)
+
+	// 使用 PGPASSFILE 而非 PGPASSWORD，避免密码暴露在进程列表中
+	cmd.Env = append(os.Environ(), "PGPASSFILE="+pgpassFile)
+
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("pg_dump failed: %v, output: %s", err, output)
 	}
 
 	return nil
+}
+
+// createPgPassFile 创建临时 .pgpass 文件用于安全认证
+// 格式: hostname:port:database:username:password
+func createPgPassFile() (string, error) {
+	tmpFile, err := os.CreateTemp("", ".pgpass-*")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %v", err)
+	}
+	defer tmpFile.Close()
+
+	// .pgpass 格式: hostname:port:database:username:password
+	content := fmt.Sprintf("%s:%s:%s:%s:%s\n",
+		flags.DatabaseHost,
+		flags.DatabasePort,
+		flags.DatabaseName,
+		flags.DatabaseUser,
+		flags.DatabasePass)
+
+	if _, err := tmpFile.WriteString(content); err != nil {
+		os.Remove(tmpFile.Name())
+		return "", fmt.Errorf("failed to write pgpass file: %v", err)
+	}
+
+	// .pgpass 必须设置为 0600 权限
+	if err := os.Chmod(tmpFile.Name(), 0600); err != nil {
+		os.Remove(tmpFile.Name())
+		return "", fmt.Errorf("failed to set pgpass file permissions: %v", err)
+	}
+
+	return tmpFile.Name(), nil
 }
 
 // DownloadBackup 用于打包 ./data 目录及数据库文件为 zip 并通过 HTTP 下载

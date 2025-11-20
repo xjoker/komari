@@ -73,14 +73,14 @@ type Session struct {
 type Record struct {
 	Client         string    `json:"client" gorm:"type:varchar(36);index:idx_client_time,priority:1"`
 	Time           LocalTime `json:"time" gorm:"index:idx_client_time,priority:2;index:idx_time"`
-	Cpu            float32   `json:"cpu" gorm:"type:decimal(5,2)"` // e.g., 75.50%
-	Gpu            float32   `json:"gpu" gorm:"type:decimal(5,2)"`
+	Cpu            float32   `json:"cpu" gorm:"type:real"` // PostgreSQL real = 4 bytes, 匹配Go float32
+	Gpu            float32   `json:"gpu" gorm:"type:real"`
 	Ram            int64     `json:"ram" gorm:"type:bigint"`
 	RamTotal       int64     `json:"ram_total" gorm:"type:bigint"`
 	Swap           int64     `json:"swap" gorm:"type:bigint"`
 	SwapTotal      int64     `json:"swap_total" gorm:"type:bigint"`
-	Load           float32   `json:"load" gorm:"type:decimal(5,2)"`
-	Temp           float32   `json:"temp" gorm:"type:decimal(5,2)"`
+	Load           float32   `json:"load" gorm:"type:real"`
+	Temp           float32   `json:"temp" gorm:"type:real"`
 	Disk           int64     `json:"disk" gorm:"type:bigint"`
 	DiskTotal      int64     `json:"disk_total" gorm:"type:bigint"`
 	NetIn          int64     `json:"net_in" gorm:"type:bigint"`
@@ -101,7 +101,7 @@ type GPURecord struct {
 	DeviceName  string    `json:"device_name" gorm:"type:varchar(100)"`                                       // GPU型号
 	MemTotal    int64     `json:"mem_total" gorm:"type:bigint"`                                               // 显存总量(字节)
 	MemUsed     int64     `json:"mem_used" gorm:"type:bigint"`                                                // 显存使用(字节)
-	Utilization float32   `json:"utilization" gorm:"type:decimal(5,2)"`                                       // GPU使用率(%)
+	Utilization float32   `json:"utilization" gorm:"type:real"`                                               // GPU使用率(%) - 使用real匹配float32
 	Temperature int       `json:"temperature"`                                                                // GPU温度(°C)
 }
 

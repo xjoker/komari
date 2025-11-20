@@ -406,21 +406,45 @@ func GetDBInstance() *gorm.DB {
 		}()
 
 		logConfig := &gorm.Config{
-			Logger: logutil.NewGormLogger(),
+			Logger:      logutil.NewGormLogger(),
+			PrepareStmt: true, // 启用预编译语句，减少重复查询的SQL解析开销
 		}
 
 		// PostgreSQL 连接
-		dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable TimeZone=Asia/Shanghai",
+		// 时区配置（可通过环境变量KOMARI_DB_TIMEZONE覆盖，默认UTC）
+		timezone := os.Getenv("KOMARI_DB_TIMEZONE")
+		if timezone == "" {
+			timezone = "UTC" // 推荐使用UTC以避免时区混淆
+		}
+
+		dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable TimeZone=%s",
 			flags.DatabaseHost,
 			flags.DatabasePort,
 			flags.DatabaseUser,
 			flags.DatabasePass,
-			flags.DatabaseName)
+			flags.DatabaseName,
+			timezone)
+
+		log.Printf("Database timezone: %s", timezone)
 		instance, err = gorm.Open(postgres.Open(dsn), logConfig)
 		if err != nil {
 			log.Fatalf("Failed to connect to PostgreSQL database: %v", err)
 		}
 		log.Printf("Using PostgreSQL database: %s@%s:%s/%s", flags.DatabaseUser, flags.DatabaseHost, flags.DatabasePort, flags.DatabaseName)
+
+		// 配置连接池以优化并发性能
+		sqlDB, err := instance.DB()
+		if err != nil {
+			log.Fatalf("Failed to get underlying database connection: %v", err)
+		}
+
+		// 连接池配置（根据实际负载调整）
+		sqlDB.SetMaxOpenConns(100)                 // 最大打开连接数（100台机器并发上报）
+		sqlDB.SetMaxIdleConns(10)                  // 最大空闲连接数
+		sqlDB.SetConnMaxLifetime(time.Hour)        // 连接最大生命周期（避免长时间空闲导致的问题）
+		sqlDB.SetConnMaxIdleTime(10 * time.Minute) // 空闲连接最大存活时间
+
+		log.Println("Database connection pool configured: MaxOpen=100, MaxIdle=10, ConnMaxLifetime=1h")
 		MergeDatabase(instance)
 		// 自动迁移模型
 		err = instance.AutoMigrate(
