@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -83,23 +84,68 @@ func copyDataToTempExcludingDB(tempDir string) error {
 	})
 }
 
-// backupSQLiteTo 使用 SQLite VACUUM INTO 将当前数据库一致性备份到指定路径
-func backupSQLiteTo(destDBPath string) error {
+// backupDatabaseTo 根据数据库类型执行不同的备份策略
+func backupDatabaseTo(destDBPath string) error {
 	if err := os.MkdirAll(filepath.Dir(destDBPath), 0o755); err != nil {
 		return fmt.Errorf("failed to create parent directory for db: %v", err)
 	}
 
 	db := dbcore.GetDBInstance()
-	sqlDB, err := db.DB()
-	if err != nil {
-		return fmt.Errorf("failed to get underlying database connection: %v", err)
+
+	switch flags.DatabaseType {
+	case "sqlite", "":
+		// 使用VACUUM INTO备份SQLite
+		sqlDB, err := db.DB()
+		if err != nil {
+			return fmt.Errorf("failed to get underlying database connection: %v", err)
+		}
+		safePath := strings.ReplaceAll(destDBPath, "'", "''")
+		vacuumSQL := fmt.Sprintf("VACUUM INTO '%s'", safePath)
+		if _, err = sqlDB.Exec(vacuumSQL); err != nil {
+			return fmt.Errorf("sqlite VACUUM INTO failed: %v", err)
+		}
+
+	case "postgres", "postgresql":
+		// 使用pg_dump备份PostgreSQL
+		cmd := exec.Command("pg_dump",
+			"-h", flags.DatabaseHost,
+			"-p", flags.DatabasePort,
+			"-U", flags.DatabaseUser,
+			"-d", flags.DatabaseName,
+			"-F", "c", // 自定义格式，支持压缩和选择性恢复
+			"-f", destDBPath)
+		cmd.Env = append(os.Environ(), "PGPASSWORD="+flags.DatabasePass)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("pg_dump failed: %v, output: %s", err, output)
+		}
+
+	case "mysql":
+		// MySQL备份使用mysqldump
+		cmd := exec.Command("mysqldump",
+			"-h", flags.DatabaseHost,
+			"-P", flags.DatabasePort,
+			"-u", flags.DatabaseUser,
+			"-p"+flags.DatabasePass,
+			"--single-transaction",
+			"--quick",
+			"--lock-tables=false",
+			flags.DatabaseName)
+
+		outFile, err := os.Create(destDBPath)
+		if err != nil {
+			return fmt.Errorf("failed to create mysql dump file: %v", err)
+		}
+		defer outFile.Close()
+
+		cmd.Stdout = outFile
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("mysqldump failed: %v, output: %s", err, output)
+		}
+
+	default:
+		return fmt.Errorf("unsupported database type for backup: %s", flags.DatabaseType)
 	}
 
-	safePath := strings.ReplaceAll(destDBPath, "'", "''")
-	vacuumSQL := fmt.Sprintf("VACUUM INTO '%s'", safePath)
-	if _, err = sqlDB.Exec(vacuumSQL); err != nil {
-		return fmt.Errorf("sqlite VACUUM INTO failed: %v", err)
-	}
 	return nil
 }
 
@@ -121,24 +167,11 @@ func DownloadBackup(c *gin.Context) {
 
 	// 3) 处理数据库备份 -> 临时目录/komari.db
 	destDB := filepath.Join(tempDir, "komari.db")
-	dbFilePath := flags.DatabaseFile
 
-	if flags.DatabaseType == "sqlite" || flags.DatabaseType == "" {
-		if err := backupSQLiteTo(destDB); err != nil {
-			api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("Error backing up sqlite database: %v", err))
-			return
-		}
-	} else if dbFilePath != "" {
-		// 非 sqlite 的情况：若配置了文件路径且存在，则直接复制（按用户需求仍然将名称固定为 komari.db）
-		if _, err := os.Stat(dbFilePath); err == nil {
-			if err := copyFile(dbFilePath, destDB); err != nil {
-				api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("Error copying database file: %v", err))
-				return
-			}
-		} else if !os.IsNotExist(err) {
-			api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("Error stating database file: %v", err))
-			return
-		}
+	// 备份数据库（支持SQLite、MySQL、PostgreSQL）
+	if err := backupDatabaseTo(destDB); err != nil {
+		api.RespondError(c, http.StatusInternalServerError, fmt.Sprintf("Error backing up database: %v", err))
+		return
 	}
 
 	// 4) 开始写出 ZIP（以临时目录为根）

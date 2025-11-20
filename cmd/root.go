@@ -48,11 +48,11 @@ func Execute() {
 
 func init() {
 	// 设置命令行参数，提供环境变量作为默认值
-	RootCmd.PersistentFlags().StringVarP(&flags.DatabaseType, "db-type", "t", dbTypeEnv, "Database type (sqlite, mysql) [env: KOMARI_DB_TYPE]")
+	RootCmd.PersistentFlags().StringVarP(&flags.DatabaseType, "db-type", "t", dbTypeEnv, "Database type (sqlite, mysql, postgres) [env: KOMARI_DB_TYPE]")
 	RootCmd.PersistentFlags().StringVarP(&flags.DatabaseFile, "database", "d", dbFileEnv, "SQLite database file path [env: KOMARI_DB_FILE]")
-	RootCmd.PersistentFlags().StringVar(&flags.DatabaseHost, "db-host", dbHostEnv, "MySQL/Other database host address [env: KOMARI_DB_HOST]")
-	RootCmd.PersistentFlags().StringVar(&flags.DatabasePort, "db-port", dbPortEnv, "MySQL/Other database port [env: KOMARI_DB_PORT]")
-	RootCmd.PersistentFlags().StringVar(&flags.DatabaseUser, "db-user", dbUserEnv, "MySQL/Other database username [env: KOMARI_DB_USER]")
-	RootCmd.PersistentFlags().StringVar(&flags.DatabasePass, "db-pass", dbPassEnv, "MySQL/Other database password [env: KOMARI_DB_PASS]")
-	RootCmd.PersistentFlags().StringVar(&flags.DatabaseName, "db-name", dbNameEnv, "MySQL/Other database name [env: KOMARI_DB_NAME]")
+	RootCmd.PersistentFlags().StringVar(&flags.DatabaseHost, "db-host", dbHostEnv, "MySQL/PostgreSQL database host address [env: KOMARI_DB_HOST]")
+	RootCmd.PersistentFlags().StringVar(&flags.DatabasePort, "db-port", dbPortEnv, "MySQL/PostgreSQL database port [env: KOMARI_DB_PORT]")
+	RootCmd.PersistentFlags().StringVar(&flags.DatabaseUser, "db-user", dbUserEnv, "MySQL/PostgreSQL database username [env: KOMARI_DB_USER]")
+	RootCmd.PersistentFlags().StringVar(&flags.DatabasePass, "db-pass", dbPassEnv, "MySQL/PostgreSQL database password [env: KOMARI_DB_PASS]")
+	RootCmd.PersistentFlags().StringVar(&flags.DatabaseName, "db-name", dbNameEnv, "MySQL/PostgreSQL database name [env: KOMARI_DB_NAME]")
 }

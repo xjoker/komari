@@ -177,6 +177,11 @@ func CompactRecord() error {
 			log.Printf("Error vacuuming database: %v", err)
 		}
 		db.Exec("PRAGMA wal_checkpoint(TRUNCATE);")
+	} else if flags.DatabaseType == "postgres" || flags.DatabaseType == "postgresql" {
+		// PostgreSQL使用VACUUM ANALYZE优化性能
+		if err := db.Exec("VACUUM ANALYZE").Error; err != nil {
+			log.Printf("Error vacuuming PostgreSQL database: %v", err)
+		}
 	}
 	//log.Printf("Record compaction completed")
 	return nil
