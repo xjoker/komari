@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -38,6 +37,7 @@ import (
 	"github.com/komari-monitor/komari/utils"
 	"github.com/komari-monitor/komari/utils/cloudflared"
 	"github.com/komari-monitor/komari/utils/geoip"
+	"github.com/komari-monitor/komari/utils/logger"
 	logutil "github.com/komari-monitor/komari/utils/log"
 	"github.com/komari-monitor/komari/utils/messageSender"
 	"github.com/komari-monitor/komari/utils/notifier"
@@ -67,17 +67,20 @@ func init() {
 
 func RunServer() {
 	// #region 初始化
+	// Initialize structured logging first (supports Loki-compatible JSON output)
+	logger.InitDefault()
+
 	// 安全检查: 确保数据库密码已配置
 	if flags.DatabasePass == "" {
-		log.Fatal("Database password is required. Please set KOMARI_DB_PASS environment variable or use --db-pass flag.")
+		logger.Fatal().Msg("Database password is required. Please set KOMARI_DB_PASS environment variable or use --db-pass flag.")
 	}
 
 	if err := os.MkdirAll("./data", os.ModePerm); err != nil {
-		log.Fatalf("Failed to create data directory: %v", err)
+		logger.Fatal().Err(err).Str("path", "./data").Msg("Failed to create data directory")
 	}
 	// 创建主题目录
 	if err := os.MkdirAll("./data/theme", os.ModePerm); err != nil {
-		log.Fatalf("Failed to create theme directory: %v", err)
+		logger.Fatal().Err(err).Str("path", "./data/theme").Msg("Failed to create theme directory")
 	}
 	InitDatabase()
 	if utils.VersionHash != "unknown" {
@@ -85,7 +88,7 @@ func RunServer() {
 	}
 	conf, err := config.Get()
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal().Err(err).Msg("Failed to get configuration")
 	}
 	go geoip.InitGeoIp()
 	go DoScheduledWork()
@@ -96,7 +99,7 @@ func RunServer() {
 	if conf.NezhaCompatEnabled {
 		go func() {
 			if err := StartNezhaCompat(conf.NezhaCompatListen); err != nil {
-				log.Printf("Nezha compat server error: %v", err)
+				logger.Error().Err(err).Str("component", "nezha-compat").Msg("Nezha compat server error")
 				auditlog.EventLog("error", fmt.Sprintf("Nezha compat server error: %v", err))
 			}
 		}()
@@ -106,9 +109,9 @@ func RunServer() {
 		if event.New.OAuthProvider != event.Old.OAuthProvider {
 			oidcProvider, err := database.GetOidcConfigByName(event.New.OAuthProvider)
 			if err != nil {
-				log.Printf("Failed to get OIDC provider config: %v", err)
+				logger.Error().Err(err).Str("component", "oauth").Msg("Failed to get OIDC provider config")
 			} else {
-				log.Printf("Using %s as OIDC provider", oidcProvider.Name)
+				logger.Info().Str("component", "oauth").Str("provider", oidcProvider.Name).Msg("Using OIDC provider")
 			}
 			err = oauth.LoadProvider(oidcProvider.Name, oidcProvider.Addition)
 			if err != nil {
@@ -121,12 +124,12 @@ func RunServer() {
 		if event.New.NezhaCompatEnabled != event.Old.NezhaCompatEnabled {
 			if event.New.NezhaCompatEnabled {
 				if err := StartNezhaCompat(event.New.NezhaCompatListen); err != nil {
-					log.Printf("start Nezha compat server error: %v", err)
+					logger.Error().Err(err).Str("component", "nezha-compat").Msg("Failed to start Nezha compat server")
 					auditlog.EventLog("error", fmt.Sprintf("start Nezha compat server error: %v", err))
 				}
 			} else {
 				if err := StopNezhaCompat(); err != nil {
-					log.Printf("stop Nezha compat server error: %v", err)
+					logger.Error().Err(err).Str("component", "nezha-compat").Msg("Failed to stop Nezha compat server")
 					auditlog.EventLog("error", fmt.Sprintf("stop Nezha compat server error: %v", err))
 				}
 			}
@@ -137,7 +140,7 @@ func RunServer() {
 	if strings.ToLower(GetEnv("KOMARI_ENABLE_CLOUDFLARED", "false")) == "true" {
 		err := cloudflared.RunCloudflared() // 阻塞，确保cloudflared跑起来
 		if err != nil {
-			log.Fatalf("Failed to run cloudflared: %v", err)
+			logger.Fatal().Err(err).Str("component", "cloudflared").Msg("Failed to run cloudflared")
 		}
 	}
 
@@ -368,21 +371,25 @@ func RunServer() {
 		Addr:    flags.Listen,
 		Handler: r,
 	}
-	log.Printf("Starting server on %s ...", flags.Listen)
+	logger.Info().
+		Str("address", flags.Listen).
+		Str("commit", utils.VersionHash).
+		Msg("Starting Komari server")
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			OnFatal(err)
-			log.Fatalf("listen: %s\n", err)
+			logger.Fatal().Err(err).Str("address", flags.Listen).Msg("Server failed to start")
 		}
 	}()
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
+	logger.Info().Msg("Received shutdown signal, shutting down gracefully...")
 	OnShutdown()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		logger.Fatal().Err(err).Msg("Server forced to shutdown")
 	}
 
 }
@@ -406,7 +413,10 @@ func InitDatabase() {
 		if err != nil {
 			panic(err)
 		}
-		log.Println("Default admin account created. Username:", user, ", Password:", passwd)
+		logger.Info().
+			Str("username", user).
+			Str("password", passwd).
+			Msg("Default admin account created")
 	}
 }
 
@@ -420,14 +430,14 @@ func DoScheduledWork() {
 	// 获取配置并处理错误
 	cfg, err := config.Get()
 	if err != nil {
-		log.Fatalf("Failed to get configuration in DoScheduledWork: %v", err)
+		logger.Fatal().Err(err).Str("component", "scheduler").Msg("Failed to get configuration in DoScheduledWork")
 	}
 
 	go notifier.CheckExpireScheduledWork()
 
 	// 延迟5分钟后执行首次数据压缩，避免启动时IO峰值
 	time.AfterFunc(5*time.Minute, func() {
-		log.Println("Running initial record compaction (delayed 5 minutes)...")
+		logger.Info().Str("component", "compaction").Msg("Running initial record compaction (delayed 5 minutes)")
 		records.CompactRecord()
 	})
 
@@ -438,13 +448,13 @@ func DoScheduledWork() {
 			db := dbcore.GetDBInstance()
 			sqlDB, err := db.DB()
 			if err != nil {
-				log.Printf("[Health Check] Failed to get database instance: %v", err)
+				logger.Error().Err(err).Str("component", "health-check").Msg("Failed to get database instance")
 				continue
 			}
 
 			// Ping 数据库以检测连接是否有效
 			if err := sqlDB.Ping(); err != nil {
-				log.Printf("[Health Check] Database connection lost: %v", err)
+				logger.Warn().Err(err).Str("component", "health-check").Msg("Database connection lost (GORM will auto-reconnect)")
 				// 注意: GORM 会自动重连，这里只是记录错误
 			}
 		}
