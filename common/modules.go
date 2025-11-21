@@ -61,6 +61,7 @@ type IPAddress struct {
 	Ipv6 string `json:"ipv6"`
 }
 type Report struct {
+	Version     string            `json:"v,omitempty"`   // Protocol version (e.g., "1.0")
 	UUID        string            `json:"uuid,omitempty"`
 	CPU         CPUReport         `json:"cpu"`
 	Ram         RamReport         `json:"ram"`
