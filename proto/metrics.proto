@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package komari.proto;
+
+option go_package = "github.com/komari-monitor/komari/proto;proto";
+
+// ClientProfile contains static information that rarely changes
+// Only sent when changed or on first connect
+message ClientProfile {
+  string version = 1;              // Protocol version (e.g., "2.0")
+  string uuid = 2;                 // Client UUID
+  string cpu_name = 3;             // e.g., "Intel Core i9-9900K"
+  int32 cpu_cores = 4;             // Number of CPU cores
+  string cpu_arch = 5;             // e.g., "x86_64"
+  int64 ram_total = 6;             // Total RAM in bytes
+  int64 swap_total = 7;            // Total swap in bytes
+  int64 disk_total = 8;            // Total disk space in bytes
+  string disk_path = 9;            // Disk mount path (e.g., "/")
+  repeated GPUProfile gpu = 10;    // GPU static information
+}
+
+// GPUProfile contains static GPU information
+message GPUProfile {
+  int32 index = 1;                 // GPU index
+  string name = 2;                 // GPU model name (e.g., "NVIDIA RTX 3090")
+  int64 memory_total = 3;          // Total GPU memory in bytes
+}
+
+// MetricsReport contains dynamic metrics reported every 5 seconds
+// This is the main data structure for regular monitoring
+message MetricsReport {
+  string version = 1;              // Protocol version (e.g., "2.0")
+  string uuid = 2;                 // Client UUID
+  int64 timestamp = 3;             // Unix timestamp in seconds
+
+  // CPU metrics
+  float cpu_usage = 4;             // CPU usage percentage (0-100)
+
+  // Memory metrics
+  int64 ram_used = 5;              // Used RAM in bytes
+  int64 swap_used = 6;             // Used swap in bytes
+
+  // Load average
+  float load1 = 7;                 // 1-minute load average
+  float load5 = 8;                 // 5-minute load average
+  float load15 = 9;                // 15-minute load average
+
+  // Disk metrics
+  int64 disk_used = 10;            // Used disk space in bytes
+  int64 disk_io_read = 11;         // Disk read bytes (delta since last report)
+  int64 disk_io_write = 12;        // Disk write bytes (delta since last report)
+
+  // Network metrics
+  int64 net_in_speed = 13;         // Incoming network speed (bytes/sec)
+  int64 net_out_speed = 14;        // Outgoing network speed (bytes/sec)
+  int64 net_total_in = 15;         // Total incoming bytes
+  int64 net_total_out = 16;        // Total outgoing bytes
+
+  // Process and connection metrics
+  int32 process_count = 17;        // Number of running processes
+  int32 tcp_connections = 18;      // Number of TCP connections
+  int32 udp_connections = 19;      // Number of UDP connections
+
+  // System uptime
+  int64 uptime = 20;               // System uptime in seconds
+
+  // GPU metrics (dynamic)
+  repeated GPUMetrics gpu = 21;    // GPU dynamic metrics
+
+  // Optional message
+  string message = 22;             // Optional status message
+}
+
+// GPUMetrics contains dynamic GPU metrics
+message GPUMetrics {
+  int32 index = 1;                 // GPU index
+  float utilization = 2;           // GPU utilization percentage (0-100)
+  int64 memory_used = 3;           // Used GPU memory in bytes
+  int32 temperature = 4;           // GPU temperature in Celsius
+}
+
+// ProfileUpdateRequest is sent when client wants to update its static profile
+message ProfileUpdateRequest {
+  ClientProfile profile = 1;
+}
+
+// ProfileUpdateResponse confirms profile update
+message ProfileUpdateResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// MetricsUploadRequest wraps metrics report for upload
+message MetricsUploadRequest {
+  MetricsReport metrics = 1;
+}
+
+// MetricsUploadResponse confirms metrics receipt
+message MetricsUploadResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// PingResult for ping task results
+message PingResult {
+  string version = 1;              // Protocol version
+  uint32 task_id = 2;              // Ping task ID
+  int32 value = 3;                 // Ping result (latency in ms, or -1 for failure)
+  string ping_type = 4;            // "icmp", "tcp", or "http"
+  int64 finished_at = 5;           // Unix timestamp when ping finished
+}

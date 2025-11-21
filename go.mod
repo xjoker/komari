@@ -23,6 +23,8 @@ require (
 
 )
 
+require go.uber.org/mock v0.6.0 // indirect
+
 // Misuse of ServerConfig.PublicKeyCallback may cause authorization bypass in golang.org/x/crypto #1
 // golang.org/x/crypto Vulnerable to Denial of Service (DoS) via Slow or Incomplete Key Exchange #3
 require golang.org/x/crypto v0.43.0 // indirect
@@ -40,7 +42,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.10 // indirect
-	github.com/gin-contrib/gzip v1.2.5
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.1 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
