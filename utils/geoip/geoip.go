@@ -63,7 +63,7 @@ func InitGeoIp() {
 	case "mmdb":
 		NewCurrentProvider, err := NewMaxMindGeoIPService()
 		if err != nil {
-			log.Printf("Failed to initialize MaxMind GeoIP service: " + err.Error())
+			log.Printf("Failed to initialize MaxMind GeoIP service: %v", err)
 		}
 		if NewCurrentProvider != nil {
 			CurrentProvider = NewCurrentProvider
@@ -74,7 +74,7 @@ func InitGeoIp() {
 	case "ip-api":
 		NewCurrentProvider, err := NewIPAPIService()
 		if err != nil {
-			log.Printf("Failed to initialize ip-api service: " + err.Error())
+			log.Printf("Failed to initialize ip-api service: %v", err)
 		}
 		if NewCurrentProvider != nil {
 			CurrentProvider = NewCurrentProvider
@@ -86,7 +86,7 @@ func InitGeoIp() {
 	case "geojs":
 		NewCurrentProvider, err := NewGeoJSService()
 		if err != nil {
-			log.Printf("Failed to initialize GeoJS service: " + err.Error())
+			log.Printf("Failed to initialize GeoJS service: %v", err)
 		}
 		if NewCurrentProvider != nil {
 			CurrentProvider = NewCurrentProvider
@@ -98,7 +98,7 @@ func InitGeoIp() {
 	case "ipinfo":
 		NewCurrentProvider, err := NewIPInfoService()
 		if err != nil {
-			log.Printf("Failed to initialize IPInfo service: " + err.Error())
+			log.Printf("Failed to initialize IPInfo service: %v", err)
 		}
 		if NewCurrentProvider != nil {
 			CurrentProvider = NewCurrentProvider
