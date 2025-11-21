@@ -26,7 +26,8 @@ func DeleteClientConfig(clientUuid string) error {
 	return nil
 }
 func DeleteClient(clientUuid string) error {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for simple delete operation
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	err := db.Delete(&models.Client{}, "uuid = ?", clientUuid).Error
 	if err != nil {
 		return err
@@ -169,7 +170,8 @@ func UpdateClientConfig(config common.ClientConfig) error {
 }
 
 func EditClientName(clientUUID, clientName string) error {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for simple update operation
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	err := db.Model(&models.Client{}).Where("uuid = ?", clientUUID).Update("name", clientName).Error
 	if err != nil {
 		return err
@@ -193,7 +195,8 @@ func EditClientName(clientUUID, clientName string) error {
 	}
 */
 func EditClientToken(clientUUID, token string) error {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for simple authentication token update
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	err := db.Model(&models.Client{}).Where("uuid = ?", clientUUID).Update("token", token).Error
 	if err != nil {
 		return err
@@ -203,7 +206,8 @@ func EditClientToken(clientUUID, token string) error {
 
 // CreateClient 创建新客户端
 func CreateClient() (clientUUID, token string, err error) {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for simple single-record insert
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	token = utils.GenerateToken()
 	clientUUID = uuid.New().String()
 
@@ -226,7 +230,8 @@ func CreateClientWithName(name string) (clientUUID, token string, err error) {
 	if name == "" {
 		return CreateClient()
 	}
-	db := dbcore.GetDBInstance()
+	// Fast timeout for simple single-record insert
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	token = utils.GenerateToken()
 	clientUUID = uuid.New().String()
 	client := models.Client{
@@ -257,7 +262,8 @@ func CreateClientWithName(name string) (clientUUID, token string, err error) {
 	}
 */
 func GetClientByUUID(uuid string) (client models.Client, err error) {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for high-frequency client lookup by UUID
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	err = db.Where("uuid = ?", uuid).First(&client).Error
 	if err != nil {
 		return models.Client{}, err
@@ -267,7 +273,8 @@ func GetClientByUUID(uuid string) (client models.Client, err error) {
 
 // GetClientBasicInfo 获取指定 UUID 的客户端基本信息
 func GetClientBasicInfo(uuid string) (client models.Client, err error) {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for high-frequency client lookup
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	err = db.Where("uuid = ?", uuid).First(&client).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -279,7 +286,8 @@ func GetClientBasicInfo(uuid string) (client models.Client, err error) {
 }
 
 func GetClientTokenByUUID(uuid string) (token string, err error) {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for authentication-related token lookup
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	var client models.Client
 	err = db.Where("uuid = ?", uuid).First(&client).Error
 	if err != nil {
@@ -289,7 +297,8 @@ func GetClientTokenByUUID(uuid string) (token string, err error) {
 }
 
 func GetAllClientBasicInfo() (clients []models.Client, err error) {
-	db := dbcore.GetDBInstance()
+	// Default timeout for fetching all clients
+	db := dbcore.WithDefaultTimeout(dbcore.GetDBInstance())
 	err = db.Find(&clients).Error
 	if err != nil {
 		return nil, err
@@ -298,7 +307,8 @@ func GetAllClientBasicInfo() (clients []models.Client, err error) {
 }
 
 func SaveClient(updates map[string]interface{}) error {
-	db := dbcore.GetDBInstance()
+	// Default timeout for client update operation
+	db := dbcore.WithDefaultTimeout(dbcore.GetDBInstance())
 	clientUUID, ok := updates["uuid"].(string)
 	if !ok || clientUUID == "" {
 		return fmt.Errorf("invalid client UUID")

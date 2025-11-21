@@ -13,17 +13,20 @@ import (
 )
 
 func RecordOne(rec models.Record) error {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for simple single-record insert
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	return db.Create(&rec).Error
 }
 
 func RecordGPU(rec models.GPURecord) error {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for simple single-record insert
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	return db.Create(&rec).Error
 }
 
 func DeleteAll() error {
-	db := dbcore.GetDBInstance()
+	// Slow timeout for multiple DELETE operations that could affect many rows
+	db := dbcore.WithSlowTimeout(dbcore.GetDBInstance())
 	if err := db.Exec("DELETE FROM records_long_term").Error; err != nil {
 		return err
 	}
@@ -38,7 +41,8 @@ func DeleteAll() error {
 
 // GetGPURecordsByClientAndTime 获取GPU记录数据
 func GetGPURecordsByClientAndTime(uuid string, start, end time.Time) ([]models.GPURecord, error) {
-	db := dbcore.GetDBInstance()
+	// Use timeout to prevent slow queries from blocking
+	db := dbcore.WithDefaultTimeout(dbcore.GetDBInstance())
 	var records []models.GPURecord
 
 	fourHoursAgo := time.Now().Add(-4*time.Hour - time.Minute)
@@ -73,13 +77,15 @@ func GetGPURecordsByClientAndTime(uuid string, start, end time.Time) ([]models.G
 }
 
 func GetLatestRecord(uuid string) (Record []models.Record, err error) {
-	db := dbcore.GetDBInstance()
+	// Fast query timeout for simple lookup
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	err = db.Where("client = ?", uuid).Order("time DESC").Limit(1).Find(&Record).Error
 	return
 }
 
 func DeleteRecordBefore(before time.Time) error {
-	db := dbcore.GetDBInstance()
+	// Slow timeout for time-range deletes that could affect many rows across multiple tables
+	db := dbcore.WithSlowTimeout(dbcore.GetDBInstance())
 	db.Table("records_long_term").Where("time < ?", before).Delete(&models.Record{})
 	db.Table("gpu_records_long_term").Where("time < ?", before).Delete(&models.GPURecord{})
 	db.Where("time < ?", before).Delete(&models.GPURecord{})
@@ -87,7 +93,8 @@ func DeleteRecordBefore(before time.Time) error {
 }
 
 func GetRecordsByClientAndTime(uuid string, start, end time.Time) ([]models.Record, error) {
-	db := dbcore.GetDBInstance()
+	// Use timeout to prevent slow queries from blocking (5s default)
+	db := dbcore.WithDefaultTimeout(dbcore.GetDBInstance())
 	var records []models.Record
 
 	fourHoursAgo := time.Now().Add(-4*time.Hour - time.Minute)
@@ -139,7 +146,8 @@ func GetRecordsByClientAndTime(uuid string, start, end time.Time) ([]models.Reco
 }
 
 func GetAllRecords() ([]models.Record, error) {
-	db := dbcore.GetDBInstance()
+	// Slow timeout for fetching all records from both tables (potentially huge dataset)
+	db := dbcore.WithSlowTimeout(dbcore.GetDBInstance())
 	var records []models.Record
 	var long_term []models.Record
 	err := db.Table("records").Order("time ASC").Find(&records).Error
@@ -158,7 +166,8 @@ func GetAllRecords() ([]models.Record, error) {
 
 // 压缩数据库
 func CompactRecord() error {
-	db := dbcore.GetDBInstance()
+	// Slow timeout for complex data migration and compaction operations
+	db := dbcore.WithSlowTimeout(dbcore.GetDBInstance())
 	err := migrateOldRecords(db)
 	if err != nil {
 		log.Printf("Error migrating old records: %v", err)

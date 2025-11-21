@@ -145,6 +145,12 @@ func RunServer() {
 	r.Use(logutil.GinLogger())
 	r.Use(logutil.GinRecovery())
 
+	// Global rate limiting - prevent system overload (20,000 req/min)
+	r.Use(middleware.RateLimitGlobal())
+
+	// Per-IP rate limiting - prevent DoS attacks (1,000 req/IP/min)
+	r.Use(middleware.RateLimitByIP())
+
 	// Zlib compression (DEFLATE algorithm) for all responses
 	// Benefits over Gzip:
 	// - 10-15% less CPU usage on client side (critical for monitoring agents)
@@ -216,18 +222,21 @@ func RunServer() {
 
 	// #region Agent
 	r.POST("/api/clients/register", client.RegisterClient)
-	tokenAuthrized := r.Group("/api/clients", api.TokenAuthMiddleware())
+	tokenAuthrized := r.Group("/api/clients", api.TokenAuthMiddleware(), middleware.RateLimitByToken())
 	{
 		tokenAuthrized.GET("/report", client.WebSocketReport) // websocket
 		tokenAuthrized.POST("/uploadBasicInfo", client.UploadBasicInfo)
 		tokenAuthrized.POST("/report", client.UploadReport)
 		tokenAuthrized.GET("/terminal", client.EstablishConnection)
 
-		// Protobuf endpoints (v2.0 protocol)
-		tokenAuthrized.POST("/v2/metrics", client.UploadProtobufReport)
-		tokenAuthrized.POST("/v2/profile", client.UploadClientProfile)
-		tokenAuthrized.POST("/v2/ping", client.UploadPingResult)
-		tokenAuthrized.GET("/v2/profile/:uuid", client.GetClientProfile)
+		// Protobuf endpoints (v2.0 protocol) with stricter rate limiting
+		v2Group := tokenAuthrized.Group("/v2", middleware.RateLimitProtobuf())
+		{
+			v2Group.POST("/metrics", client.UploadProtobufReport)
+			v2Group.POST("/profile", client.UploadClientProfile)
+			v2Group.POST("/ping", client.UploadPingResult)
+			v2Group.GET("/profile/:uuid", client.GetClientProfile)
+		}
 	}
 	// #region 管理员
 	adminAuthrized := r.Group("/api/admin", api.AdminAuthMiddleware())

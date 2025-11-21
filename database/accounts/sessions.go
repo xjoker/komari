@@ -17,7 +17,8 @@ import (
 
 // GetAllSessions 获取所有会话
 func GetAllSessions() (sessions []models.Session, err error) {
-	db := dbcore.GetDBInstance()
+	// Default timeout for admin operation fetching all sessions
+	db := dbcore.WithDefaultTimeout(dbcore.GetDBInstance())
 	err = db.Find(&sessions).Error
 	if err != nil {
 		return nil, err
@@ -27,7 +28,8 @@ func GetAllSessions() (sessions []models.Session, err error) {
 
 // CreateSession 创建新会话
 func CreateSession(uuid string, expires int, userAgent, ip, login_method string) (string, error) {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for login operation
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	session := utils.GenerateRandomString(32)
 
 	sessionRecord := models.Session{
@@ -64,7 +66,8 @@ func CreateSession(uuid string, expires int, userAgent, ip, login_method string)
 
 // GetSession 根据会话 ID 获取 UUID
 func GetSession(session string) (uuid string, err error) {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for critical authentication lookup (very high frequency)
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	var sessionRecord models.Session
 	err = db.Where("session = ?", session).First(&sessionRecord).Error
 	if err != nil {
@@ -81,7 +84,8 @@ func GetSession(session string) (uuid string, err error) {
 }
 
 func GetUserBySession(session string) (models.User, error) {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for authentication lookup
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	var sessionRecord models.Session
 	err := db.Where("session = ?", session).First(&sessionRecord).Error
 	if err != nil {
@@ -92,7 +96,8 @@ func GetUserBySession(session string) (models.User, error) {
 
 // DeleteSession 删除指定会话
 func DeleteSession(session string) (err error) {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for logout operation
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	result := db.Where("session = ?", session).Delete(&models.Session{})
 	if result.Error != nil {
 		return result.Error
@@ -101,7 +106,8 @@ func DeleteSession(session string) (err error) {
 }
 
 func DeleteAllSessions() error {
-	db := dbcore.GetDBInstance()
+	// Default timeout for admin operation deleting all sessions
+	db := dbcore.WithDefaultTimeout(dbcore.GetDBInstance())
 	result := db.Where("1 = 1").Delete(&models.Session{})
 	if result.Error != nil {
 		return result.Error
@@ -110,21 +116,26 @@ func DeleteAllSessions() error {
 }
 
 func UpdateLatestOnline(session string) error {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for high-frequency session heartbeat update
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	return db.Model(&models.Session{}).Where("session = ?", session).Update("latest_online", time.Now()).Error
 }
 
 func UpdateLatestUserAgent(session, userAgent string) error {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for session metadata update
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	return db.Model(&models.Session{}).Where("session = ?", session).Update("latest_user_agent", userAgent).Error
 }
+
 func UpdateLatestIp(session, ip string) error {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for session metadata update
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	return db.Model(&models.Session{}).Where("session = ?", session).Update("latest_ip", ip).Error
 }
 
 func UpdateLatest(session, useragent, ip string) error {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for high-frequency session update
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	return db.Model(&models.Session{}).Where("session = ?", session).Updates(map[string]interface{}{
 		"latest_online":     time.Now(),
 		"latest_user_agent": useragent,

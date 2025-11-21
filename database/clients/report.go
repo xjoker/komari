@@ -31,7 +31,8 @@ func SaveReport(uuid string, data map[string]interface{}) (err error) {
 }
 
 func GetClientUUIDByToken(token string) (clientUUID string, err error) {
-	db := dbcore.GetDBInstance()
+	// Fast timeout for critical authentication lookup (very high frequency on every API request)
+	db := dbcore.WithFastTimeout(dbcore.GetDBInstance())
 	var client models.Client
 	err = db.Where("token = ?", token).First(&client).Error
 	if err != nil {
